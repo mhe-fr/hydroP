@@ -1,0 +1,19 @@
+{ 
+    "wdt": true,
+    "network": {
+        "ap_list": [
+            { "ssid": "FreeboxHL", "password": "Chipie764" }
+        ],
+        "MACaddr":null
+    },
+    "webrepl": false,
+    "gcp": {
+        "TOPIC": "ESP32Bonsai",
+        "PROJECT_ID": "esp32bonsai",
+        "CLOUD_REGION": "europe-west1",
+        "REGISTRY_ID": "esp32Bonsai",
+        "DEVICE_ID": "esp32Bonsai_2",
+        "KEYFILE": "./private_key1.pem",
+        "CERTFILE": "./public_key1.pem"
+    }
+}

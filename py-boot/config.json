@@ -1,0 +1,22 @@
+{ 
+    "devices": {
+        "water_temp_ow_addr": "28ff9de5611604f2",
+        "air_temp_ow_addr":   "28ff219a611604ae"
+    },
+    "ph_control": {
+        "start": true,
+        "setpoint": 5.5,
+        "threshold": 0.2
+    },
+    "temp_control": {
+        "start": true,
+        "setpoint": 20,
+        "threshold": 0.5
+    },
+    "refill": {
+        "start": true,
+        "duration_s": 30,
+        "every_h": 24,
+        "start_h": 8
+    }
+}

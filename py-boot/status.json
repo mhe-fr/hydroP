@@ -1,0 +1,25 @@
+{
+    "env": {
+        "ph": 7.0,
+        "water_temp": 10,
+        "air_temp": 10,
+        "timestamp": 0
+    },
+    "counter": {
+        "ph" : 0,
+        "refill": 0,
+        "heater": 0,
+        "running": 0
+    },
+    "services": {
+        "wdt": false,
+        "network": false,
+        "ntp": false,
+        "webrepl": false,
+        "gcp": false,
+        "ph_control": false,
+        "temp_control": false,
+        "refill": false,
+    },
+    "boot": []
+}
