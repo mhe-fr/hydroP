@@ -4,7 +4,8 @@ import ucryptolib
 import ubinascii
 import uhashlib
 import gc
-from umqtt.simple import MQTTClient
+# from umqtt.simple import MQTTClient
+from umqtt import MQTTClient
 
 DISCONNECTED = 0
 CONNECTING = 1
@@ -12,16 +13,18 @@ CONNECTED = 2
 GOOGLEMQTTHOST = "mqtt.googleapis.com"
 EPOCH_GAP_SEC = 946684800  # 01/01/1970 (linux) to 01/01/2000 (embedded mp ntptime) = 10957 days * (24 * 3600) sec/days
 
-def cleanBase64(src) :
+
+def cleanBase64(src):
     ret = ubinascii.b2a_base64(src)[:-1]
     rest = len(src) % 3
     if rest != 0 :
         return ret[:-3 + rest ]
     return ret
 
+
 class GCPIOT:
 
-    def __init__(self, project_id, cloud_region, registry_id, device_id, keyfile, certfile, callback=None):
+    def __init__(self, project_id, cloud_region, registry_id, device_id, keyfile, certfile, callback=None, timeout=0):
         self.project_id = project_id
         self.cloud_region = cloud_region
         self.registry_id = registry_id
@@ -34,6 +37,7 @@ class GCPIOT:
         self.lastEventDate = None
         self.state = DISCONNECTED
         self.callback = callback
+        self.timeout = timeout
         
     def _isAlive(self):
         return (utime.time() + EPOCH_GAP_SEC < self.exp)  
@@ -65,7 +69,7 @@ class GCPIOT:
             # print(jwt)
             try:
                 self.state = CONNECTING
-                self.connection = MQTTClient(client_id=clientString, user="johndoe", password=jwt, server=GOOGLEMQTTHOST, port=8883, keepalive=60*10, ssl=True)
+                self.connection = MQTTClient(client_id=clientString, user="johndoe", password=jwt, server=GOOGLEMQTTHOST, port=8883, keepalive=60*10, ssl=True, timeout=self.timeout)
                 self.connection.connect()
                 self.connection.set_callback(self.callback)
                 self.state = CONNECTED

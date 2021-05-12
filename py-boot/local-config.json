@@ -1,5 +1,5 @@
 { 
-    "wdt": true,
+    "wdt": false,
     "network": {
         "ap_list": [
             { "ssid": "FreeboxHL", "password": "Chipie764" }

@@ -33,6 +33,14 @@ def IOTcommand(topic, msg_bytes):
     msg = msg_bytes.decode("utf-8")
     print_queue.append("topic :{}, msg:{} \n".format(topic, msg))
     msg_array = msg.split(':')
+    if msg_array[0] == 'set' and len(msg_array) == 4:
+        if msg_array[1] in ['refill', 'ph_control', 'temp_control']:
+            if msg_array[2] in config[msg_array[1]] and msg_array[2] != 'start':
+                try:
+                    a = int(msg_array[3])
+                    config[msg_array[1]][msg_array[2]] = a
+                except ValueError:
+                    a = 0
     if msg_array[0] == 'set' and len(msg_array) == 3:
         if msg_array[1] in ['wdt', 'webrepl'] and msg_array[2] in ['on', 'off']:
             lc[msg_array[1]] = (msg_array[2] == 'on')
@@ -215,22 +223,41 @@ async def store_state():
         # print_queue.append(b'utime.time() : {}, schedule_time : {}'.format(utime.time(), schedule_time))
 
         if utime.time() >= schedule_time:
+            gc.collect()
             print_queue.append("start : {}".format(utime.time()))
-            schedule_time += periode
             a = utime.gmtime()
             timestamp = '{:4d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}Z'.format(a[0], a[1], a[2], a[3], a[4], a[5])
             msg = ('{{"ambientTemp" : {:.1f}, "waterTemp" : {:.1f}, "pH" : {:.1f}, "waterLowLevelHydro" : {:.0f}, '
                    '"waterHighLevelHydro" : {:.0f}, "timestamp" : "{}"}}')\
                 .format(status['env']['air_temp'], status['env']['water_temp'], status['env']['ph'], 0, 0, timestamp)
-            esp32.publish('/devices/{dev-id}/events'.format(**{'dev-id': lc['gcp']['DEVICE_ID']}), msg)
             string = ''
             for item in status:
                 string += '{}: {}\n'.format(item, json.dumps(status[item]))
-            esp32.publish('/devices/{dev-id}/state'.format(**{'dev-id': lc['gcp']['DEVICE_ID']}), string)
-            print_queue.append(msg)
-            status['env']['timestamp'] = utime.time()
-            with open('status.json', 'w') as outfile:
-                json.dump(status, outfile)
+            retry = 0
+            while True:
+                try:
+                    if status['services']['gcp']:
+                        esp32.publish('/devices/{dev-id}/events'.format(**{'dev-id': lc['gcp']['DEVICE_ID']}), msg)
+                        esp32.publish('/devices/{dev-id}/state'.format(**{'dev-id': lc['gcp']['DEVICE_ID']}), string)
+                except OSError:
+                    retry += 1
+                    print_queue.append('publish timeout')
+                    await uasyncio.sleep(2)
+                    if retry >= 3:
+                        status['services']['gcp'] = False
+                        esp32.disconnect()
+                        retry = 0
+                        if lc['wdt']:  # Panic restart
+                            reset()
+                        break
+                else:
+                    retry = 0
+                    schedule_time += periode
+                    print_queue.append(msg)
+                    status['env']['timestamp'] = utime.time()
+                    with open('status.json', 'w') as outfile:
+                        json.dump(status, outfile)
+                    break
 
         feed_wdt()
         await uasyncio.sleep(2)
@@ -242,6 +269,13 @@ async def sanity_check():
     counter = 0
     wheel = ['/', '-', '\\', '|']
     while True:
+        if not status['services']['network']:
+            if 'network' in lc and 'ap_list' in lc['network']:
+                status['services']['network'] = wifi_connect(lc['network']['ap_list'])
+        if not status['services']['ntp']:
+            status['services']['ntp'] = set_ntp_time()
+        if not status['services']['gcp']:
+            status['services']['gcp'] = gcp_connect(lc)
         s = '{} time:{} fm:{}'.format(wheel[counter % 4], round((utime.time() - start) / 60, 1), gc.mem_free())
         print(s, end='')
         await uasyncio.sleep(2)
@@ -252,10 +286,19 @@ async def sanity_check():
         counter += 1
         while len(print_queue) > 0:
             print(print_queue.pop(0))
-#        gc.collect()
-#        gc.threshold(gc.mem_free() // 4 + gc.mem_alloc())
+        feed_wdt()
 
-global config, status, lc, print_queue
+
+def gcp_connect(lc):
+    global esp32
+    esp32 = gcp_iot.GCPIOT(lc['gcp']['PROJECT_ID'], lc['gcp']['CLOUD_REGION'], lc['gcp']['REGISTRY_ID'],
+                           lc['gcp']['DEVICE_ID'], lc['gcp']['KEYFILE'], lc['gcp']['CERTFILE'], IOTcommand, 2)
+
+    esp32.connect()
+    esp32.subscribe('/devices/{device-id}/commands/#'.format(**{'device-id': lc['gcp']['DEVICE_ID']}))
+    return gcp_iot.CONNECTED
+
+global config, status, lc, print_queue, esp32
 
 peristaltic_queue = []
 refill_queue = []
@@ -295,17 +338,7 @@ feed_wdt()
 if lc['webrepl']:
     start_web_repl()
 
-esp32 = gcp_iot.GCPIOT(lc['gcp']['PROJECT_ID'], lc['gcp']['CLOUD_REGION'], lc['gcp']['REGISTRY_ID'],
-                       lc['gcp']['DEVICE_ID'], lc['gcp']['KEYFILE'], lc['gcp']['CERTFILE'], IOTcommand)
-
-esp32.connect()
-if esp32.state == gcp_iot.CONNECTED:
-    status['services']['gcp'] = True
-
-feed_wdt()
-
-esp32.subscribe('/devices/{device-id}/commands/#'.format(**{'device-id': lc['gcp']['DEVICE_ID']}))
-
+status['services']['gcp'] = gcp_connect(lc)
 feed_wdt()
 
 # scan for devices on the bus

@@ -86,9 +86,6 @@ def set_ntp_time():  # Set ntp time
 
     return ntp_set
 
-
-print_queue = []
-
 try:
     lc = import_json('local-config.json')
     if 'wdt' not in lc:
