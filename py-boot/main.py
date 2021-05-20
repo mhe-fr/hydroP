@@ -178,6 +178,9 @@ async def check_message():
         try:
             esp32.check_msg()
         except OSError:
+            print_queue.append('Read error')
+            esp32.disconnect()
+            status['services']['gcp'] = False
             pass
         await uasyncio.sleep(2)
 
@@ -233,23 +236,20 @@ async def store_state():
             string = ''
             for item in status:
                 string += '{}: {}\n'.format(item, json.dumps(status[item]))
-            retry = 0
-            while True:
+            retry = 3
+            while retry > 0:
                 try:
                     if status['services']['gcp']:
                         esp32.publish('/devices/{dev-id}/events'.format(**{'dev-id': lc['gcp']['DEVICE_ID']}), msg)
                         esp32.publish('/devices/{dev-id}/state'.format(**{'dev-id': lc['gcp']['DEVICE_ID']}), string)
                 except OSError:
-                    retry += 1
+                    retry -= 1
                     print_queue.append('publish timeout')
                     await uasyncio.sleep(2)
-                    if retry >= 3:
+                    if retry == 0:
                         status['services']['gcp'] = False
                         esp32.disconnect()
                         retry = 0
-                        if lc['wdt']:  # Panic restart
-                            reset()
-                        break
                 else:
                     retry = 0
                     schedule_time += periode
@@ -257,7 +257,6 @@ async def store_state():
                     status['env']['timestamp'] = utime.time()
                     with open('status.json', 'w') as outfile:
                         json.dump(status, outfile)
-                    break
 
         feed_wdt()
         await uasyncio.sleep(2)
@@ -291,9 +290,6 @@ async def sanity_check():
 
 def gcp_connect(lc):
     global esp32
-    esp32 = gcp_iot.GCPIOT(lc['gcp']['PROJECT_ID'], lc['gcp']['CLOUD_REGION'], lc['gcp']['REGISTRY_ID'],
-                           lc['gcp']['DEVICE_ID'], lc['gcp']['KEYFILE'], lc['gcp']['CERTFILE'], IOTcommand, 2)
-
     esp32.connect()
     esp32.subscribe('/devices/{device-id}/commands/#'.format(**{'device-id': lc['gcp']['DEVICE_ID']}))
     return gcp_iot.CONNECTED
@@ -337,6 +333,9 @@ feed_wdt()
 
 if lc['webrepl']:
     start_web_repl()
+
+esp32 = gcp_iot.GCPIOT(lc['gcp']['PROJECT_ID'], lc['gcp']['CLOUD_REGION'], lc['gcp']['REGISTRY_ID'],
+                       lc['gcp']['DEVICE_ID'], lc['gcp']['KEYFILE'], lc['gcp']['CERTFILE'], IOTcommand, 2)
 
 status['services']['gcp'] = gcp_connect(lc)
 feed_wdt()

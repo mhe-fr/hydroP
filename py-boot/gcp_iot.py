@@ -17,8 +17,8 @@ EPOCH_GAP_SEC = 946684800  # 01/01/1970 (linux) to 01/01/2000 (embedded mp ntpti
 def cleanBase64(src):
     ret = ubinascii.b2a_base64(src)[:-1]
     rest = len(src) % 3
-    if rest != 0 :
-        return ret[:-3 + rest ]
+    if rest != 0:
+        return ret[:-3 + rest]
     return ret
 
 
