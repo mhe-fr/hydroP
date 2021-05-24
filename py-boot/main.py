@@ -175,13 +175,14 @@ async def coro_read_env():
 
 async def check_message():
     while True:
-        try:
-            esp32.check_msg()
-        except OSError:
-            print_queue.append('Read error')
-            esp32.disconnect()
-            status['services']['gcp'] = False
-            pass
+        if status['services']['gcp']:
+            try:
+                esp32.check_msg()
+            except OSError:
+                print_queue.append('Read error')
+                esp32.disconnect()
+                status['services']['gcp'] = False
+                pass
         await uasyncio.sleep(2)
 
 
@@ -236,27 +237,27 @@ async def store_state():
             string = ''
             for item in status:
                 string += '{}: {}\n'.format(item, json.dumps(status[item]))
-            retry = 3
-            while retry > 0:
-                try:
-                    if status['services']['gcp']:
+            if status['services']['gcp']:
+                retry = 3
+                while retry > 0:
+                    try:
                         esp32.publish('/devices/{dev-id}/events'.format(**{'dev-id': lc['gcp']['DEVICE_ID']}), msg)
                         esp32.publish('/devices/{dev-id}/state'.format(**{'dev-id': lc['gcp']['DEVICE_ID']}), string)
-                except OSError:
-                    retry -= 1
-                    print_queue.append('publish timeout')
-                    await uasyncio.sleep(2)
-                    if retry == 0:
-                        status['services']['gcp'] = False
-                        esp32.disconnect()
+                    except OSError:
+                        retry -= 1
+                        print_queue.append('publish timeout')
+                        await uasyncio.sleep(2)
+                        if retry == 0:
+                            status['services']['gcp'] = False
+                            esp32.disconnect()
+                            retry = 0
+                    else:
                         retry = 0
-                else:
-                    retry = 0
-                    schedule_time += periode
-                    print_queue.append(msg)
-                    status['env']['timestamp'] = utime.time()
-                    with open('status.json', 'w') as outfile:
-                        json.dump(status, outfile)
+                        schedule_time += periode
+                        print_queue.append(msg)
+                        status['env']['timestamp'] = utime.time()
+                        with open('status.json', 'w') as outfile:
+                            json.dump(status, outfile)
 
         feed_wdt()
         await uasyncio.sleep(2)

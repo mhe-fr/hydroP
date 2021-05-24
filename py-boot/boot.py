@@ -86,6 +86,8 @@ def set_ntp_time():  # Set ntp time
 
     return ntp_set
 
+
+print_queue = []
 try:
     lc = import_json('local-config.json')
     if 'wdt' not in lc:
@@ -104,7 +106,7 @@ try:
     a = utime.gmtime()
 
     boot_msg = 'Starting at {:4d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}Z'.format(a[0], a[1], a[2], a[3], a[4], a[5])
-    print_queue = [boot_msg]
+    print_queue.append(boot_msg)
 
     if 'boot' not in status:
         status['boot'] = []
